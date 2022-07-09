@@ -1,57 +1,6 @@
-# Upgrade JunOS Software
+# using python
 
-[![N|Solid](https://upload.wikimedia.org/wikipedia/commons/3/31/Juniper_Networks_logo.svg)](https://junos-ansible-modules.readthedocs.io/en/stable/)
-
-## Overview
-
-This example will show how to use either Ansible or Python to upgrade your Juniper network devices.
-
-This repository also ships with additional tools to help you along your way. You will find a Dockerfile for running the project in an isolated environment, and an Invoke tasks file for those of us that hate typing out everything all the time.
-
-## 📝 Dependencies
-
-Refer to the Poetry Lock file located at [poetry.lock](poetry.lock) for detailed descriptions on each package installed.
-
----
-
-## ⚙️ Ansible Demo
-
-Ansible will build a NETCONF session to the device and manage the upload / upgrade process. In this example, a web server running NGINX is hosting the image.
-
-Let's take a second to review the documentation in the `docs/` directory.
-
-| Name                                                     | Description               |
-| -------------------------------------------------------- | ------------------------- |
-| [Ansible Playbook](docs/pb.junos.upgrade.yaml.rst) | Upgrade a network device  |
-| [NGINX setup](docs/nginx.rst)                      | NGINX overview (optional) |
-| [Inventory file](docs/inventory.rst)               | Inventory                 |
-
-### 🚀 `Executing the playbook`
-
-This project provides two unique methods of executing the playbook:
-
-[Executing with Docker](docs/execute_with_docker.rst) | Execute with Docker
-
-[Executing with Python](docs/execute_with_python.rst) | Execute with Python
-
-### Note for Ansible Tower / AWX users
-
-You'll note that there is an ansible.cfg file found in the root of the project's directory, the only purpose this serves is for Ansible Tower / AWX, which will look for these files when the project syncs from Gitlab/Github/Whatever, and Tower will auto-install the packages.
-
-The ansible.cfg file will be the definitive for each Playbook (Template) execution, so super important to keep it here.
-
----
-
-## Python Demo
-
-Two different demos have been uploaded:
-
-- simple, no-frills example: `python/app.py`
-- feature-filled example: `python/upgrade.py`
-
-Sample output from their execution is found below.
-
-### app.py
+## app.py
 
 example focused on being minimal
 
@@ -144,7 +93,7 @@ NOTICE: 'pending' set will be activated at next reboot...
 $
 ```
 
-### upgrade.py
+## upgrade.py
 
 example with more features
 
@@ -319,29 +268,4 @@ Software installation complete. Rebooting
 [host office session-id 16496] Received message from host
 Upgrade pending reboot cycle, please be patient.
 Shutdown at Wed Jan 19 14:10:47 2022. [pid 24296]
-```
-
-example of a failed upgrade, in this example the switch's clock was behind the certificate validation period for the new OS
-
-```bash
-<?xml version="1.0" encoding="UTF-8"?><nc:rpc xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="urn:uuid:c22097bb-699b-4189-af23-6bb9e7bf7c74"><request-package-add><no-validate/><package-name>/var/tmp/junos-arm-32-20.4R3.8.tgz</package-name></request-package-add></nc:rpc>]]>]]>
-2022-01-19 15:17:24,966:ncclient.transport.ssh: [host 192.168.104.168 session-id 30031] Received message from host
-2022-01-19 15:17:24,969:192.168.104.168: software pkgadd package-result: 1
-Output:
-Removing /var/log/wtmp.0.gz
-Removing /var/log/messages.0.gz
-Removing /var/log/interactive-commands.0.gz
-Removing /packages/sets/active/jdocs-ex
-Removing /packages/sets/active/jweb-ex
-setting unlink by default.
-setting unlink by default.
-veriexec: cannot validate /packages/db/pkginst.30178/manifest.ecerts: certificate is not yet valid: /C=US/ST=CA/L=Sunnyvale/O=Juniper Networks/OU=Juniper CA/CN=PackageProductionECP256_2021/emailAddress=ca@juniper.net
-veriexec: cannot validate junos-arm-32-20.4R3.8.ecerts: certificate is not yet valid: /C=US/ST=CA/L=Sunnyvale/O=Juniper Networks/OU=Juniper CA/CN=PackageProductionECP256_2021/emailAddress=ca@juniper.net
-veriexec: /packages/db/pkginst.30178/package.xml: Authentication error
-usage: /usr/sbin/pkg add <pkg> ...
-where <pkg> is a compressed tar file
-ERROR: Failed to add junos-arm-32-20.4R3.8.tgz
-
-2022-01-19 15:17:24,970:192.168.104.168: Unable to install software, False
-
 ```

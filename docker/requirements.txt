@@ -1,0 +1,5 @@
+ansible==3.4.0
+junos-eznc
+jxmlease
+lxml
+xmltodict
