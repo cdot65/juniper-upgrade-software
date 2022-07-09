@@ -23,7 +23,7 @@ from invoke import task
 PWD = os.getcwd()
 
 # ---------------------------------------------------------------------------
-# SLACK TOKENS CAN BE LOADED FROM ENVIRONMENT OR TYPED AS A STRING
+# NETWORK USER/PASS CAN BE LOADED FROM ENVIRONMENT OR TYPED AS A STRING
 # ---------------------------------------------------------------------------
 ANSIBLE_NET_USERNAME = os.environ.get("ANSIBLE_NET_USERNAME", "root")
 ANSIBLE_NET_PASSWORD = os.environ.get("ANSIBLE_NET_PASSWORD", "juniper123")
@@ -31,8 +31,10 @@ ANSIBLE_NET_PASSWORD = os.environ.get("ANSIBLE_NET_PASSWORD", "juniper123")
 # ---------------------------------------------------------------------------
 # DOCKER PARAMETERS
 # ---------------------------------------------------------------------------
-DOCKER_IMG = "ghcr.io/cdot65/juniper-upgrade-software"
-DOCKER_TAG = "0.0.1"
+DOCKER_IMG_ANSIBLE = "ghcr.io/cdot65/juniper-upgrade-software"
+DOCKER_TAG_ANSIBLE = "0.0.1"
+DOCKER_IMG_FASTAPI = "ghcr.io/cdot65/juniper-upgrade-fileserver"
+DOCKER_TAG_FASTAPI = "0.0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +62,7 @@ def run_command(context, command, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# DOCKER CONTAINER IMAGE BUILD
+# ANSIBLE CONTAINER IMAGE BUILD
 # ---------------------------------------------------------------------------
 @task(
     help={
@@ -68,8 +70,8 @@ def run_command(context, command, **kwargs):
         "cache": "Determine whether or not to use local cache.",
     }
 )
-def build(context, force_rm=False, cache=True):
-    """Build our docker container image.
+def ansiblebuild(context, force_rm=False, cache=True):
+    """Build our Ansible docker container image.
     Args:
         context (obj): Used to run specific commands
         force_rm (Bool): will remove any local instance [default: False]
@@ -77,7 +79,7 @@ def build(context, force_rm=False, cache=True):
     """
 
     # build command pointing to a folder outside our local context
-    command = "docker build -f docker/Dockerfile"
+    command = "docker build -f docker/ansible/Dockerfile"
 
     if not cache:
         command += " --no-cache"
@@ -91,17 +93,19 @@ def build(context, force_rm=False, cache=True):
     # build arguments pass our tokens into the build process
     ansible_args = f"--build-arg={ansible_username} --build-arg={ansible_password}"
 
-    console_msg(f"Building our Docker container image {DOCKER_IMG}:{DOCKER_TAG}")
+    console_msg(
+        f"Building our Docker container image {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}"
+    )
     context.run(
-        f"{command} {ansible_args} -t {DOCKER_IMG}:{DOCKER_TAG} .",
+        f"{command} {ansible_args} -t {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE} .",
     )
 
 
 # ------------------------------------------------------------------------------
-# START / STOP / DEBUG
+# ACCESS THE SHELL WITHIN AN INSTANCE OF OUR ANSIBLE CONTAINER
 # ------------------------------------------------------------------------------
 @task()
-def local(context):
+def ansibleshell(context):
     """Test our automation container by running it locally."""
 
     # run an ephemeral container in the foreground
@@ -113,41 +117,89 @@ def local(context):
     # mount our app/ directory to user home
     volume = f"{PWD}/ansible:{workdir}"
 
-    console_msg(f"Accessing local instance of {DOCKER_IMG}:{DOCKER_TAG}...")
-    context.run(f"{command} -v {volume} {DOCKER_IMG}:{DOCKER_TAG} /bin/sh", pty=True)
+    console_msg(
+        f"Accessing local instance of {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}..."
+    )
+    context.run(
+        f"{command} -v {volume} {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE} /bin/sh",
+        pty=True,
+    )
 
 
 # ------------------------------------------------------------------------------
-# ACTIONS
+# GITHUB WORK
 # ------------------------------------------------------------------------------
 @task
-def shell(context):
-    # Get access to the BASH shell within our container
-    print("Jump into a container")
+def publish(context):
+    """Publish container image to github repository."""
     context.run(
-        f"docker run -it --rm \
-            -v {PWD}/cdot65/apstra:/home/apstra \
-            -w /home/apstra/ \
-            {DOCKER_IMG}:{DOCKER_TAG} /bin/bash",
+        f"docker push {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}",
+    )
+
+
+@task
+def tag(context):
+    """Tag our version within the repository."""
+    context.run(
+        f"git tag v{DOCKER_IMG_ANSIBLE} && \
+          git push origin v{DOCKER_TAG_ANSIBLE}",
+        pty=True,
+    )
+
+
+# -----------------------------------------------------------------------------
+# BUILD AN RUN A LOCAL FILE SERVER
+# -----------------------------------------------------------------------------
+@task(
+    help={
+        "force_rm": "Always remove existing containers.",
+        "cache": "Determine whether or not to use local cache.",
+    }
+)
+def serverbuild(context, force_rm=False, cache=True):
+    """Build our FastAPI docker container image.
+    Args:
+        context (obj): Used to run specific commands
+        force_rm (Bool): will remove any local instance [default: False]
+        cache (Bool): determine whether or not to use cache [default: True]
+    """
+
+    # build command pointing to a folder outside our local context
+    command = "docker build -f docker/fileserver/Dockerfile"
+
+    if not cache:
+        command += " --no-cache"
+    if force_rm:
+        command += " --force-rm"
+
+    console_msg(
+        f"Building our Docker container image {DOCKER_IMG_FASTAPI}:{DOCKER_TAG_FASTAPI}"
+    )
+    context.run(
+        f"{command} -t {DOCKER_IMG_FASTAPI}:{DOCKER_TAG_FASTAPI} .",
+    )
+
+
+@task
+def serverrun(context):
+    # Execute Ansible playbook from within the container
+    context.run(
+        f"docker run -d \
+            --rm \
+            -v {PWD}/python/fileserver:/home/fastapi \
+            -w /home/fastapi/ \
+            -p 9100:80 \
+            --name fileserver \
+            {DOCKER_IMG_FASTAPI}:{DOCKER_TAG_FASTAPI}",
         pty=True,
     )
 
 
 @task
-def publish(context):
-    """Publish container image to github repository."""
+def servershell(context):
+    # Execute Ansible playbook from within the container
     context.run(
-        f"docker push {DOCKER_IMG}:{DOCKER_TAG}",
-    )
-
-
-# INVOKE TAG
-@task
-def tag(context):
-    """Tag our version within the private repository."""
-    context.run(
-        f"git tag v{DOCKER_IMG} && \
-          git push origin v{DOCKER_TAG}",
+        "docker exec -it fileserver sh",
         pty=True,
     )
 
@@ -199,20 +251,3 @@ def tests(context):
     console_msg("Running flake8...")
     flake8(context)
     console_msg("All tests have passed!")
-
-
-# -----------------------------------------------------------------------------
-# Run local file server
-# -----------------------------------------------------------------------------
-@task
-def server(context):
-    # Execute Ansible playbook from within the container
-    context.run(
-        f"docker run -it \
-            --rm \
-            --env-file	{PWD}/docker/.env \
-            -v {PWD}/ansible/:/home/ansible \
-            -w /home/ansible/ \
-            {DOCKER_IMG}:{DOCKER_TAG} ansible-playbook pb.junos.upgrade.yaml",
-        pty=True,
-    )

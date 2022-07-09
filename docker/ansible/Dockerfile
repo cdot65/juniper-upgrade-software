@@ -19,7 +19,7 @@ WORKDIR /home/ansible
 # ---------------------------------------------------------------------------
 # Add and install python packages
 # ---------------------------------------------------------------------------
-ADD requirements.txt requirements.txt
+ADD docker/ansible/requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
 # ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ RUN ansible-galaxy collection install juniper.device
 # ---------------------------------------------------------------------------
 # COPY OVER ansible.cfg
 # ---------------------------------------------------------------------------
-COPY ansible.cfg /etc/ansible/ansible.cfg
+COPY docker/ansible/ansible.cfg /etc/ansible/ansible.cfg
 
 # ---------------------------------------------------------------------------
 # ENVIRONMENT SETUP
