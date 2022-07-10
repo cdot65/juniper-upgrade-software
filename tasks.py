@@ -12,7 +12,7 @@ ANSIBLE_NET_USERNAME = os.environ.get("ANSIBLE_NET_USERNAME", "root")
 ANSIBLE_NET_PASSWORD = os.environ.get("ANSIBLE_NET_PASSWORD", "juniper123")
 
 JUNOS_DEVICE = "device_name=houston-ifw-01"
-JUNOS_VERSION = 'software_version="junos-srxsme-21.3R3.10.tgz"'
+JUNOS_VERSION = 'software_version="junos-srxsme-22.2R1.9.tgz"'
 FILESERVER = 'fileserver="192.168.104.20:4200"'
 
 PB = f"pb.junos.upgrade.yaml -e {JUNOS_DEVICE} -e {JUNOS_VERSION} -e {FILESERVER}"
