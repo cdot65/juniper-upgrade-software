@@ -1,16 +1,4 @@
-"""Tasks for use with Invoke.
-
-(c) 2021 Calvin Remsburg
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-  http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Tasks for use with Invoke."""
 
 import os
 import logging
@@ -18,21 +6,28 @@ from invoke import task
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PARAMETERS
-# ---------------------------------------------------------------------------
-PWD = os.getcwd()
-
-# ---------------------------------------------------------------------------
-# NETWORK USER/PASS CAN BE LOADED FROM ENVIRONMENT OR TYPED AS A STRING
+# ANSIBLE ARGUMENTS AND COMMANDS
 # ---------------------------------------------------------------------------
 ANSIBLE_NET_USERNAME = os.environ.get("ANSIBLE_NET_USERNAME", "root")
 ANSIBLE_NET_PASSWORD = os.environ.get("ANSIBLE_NET_PASSWORD", "juniper123")
+
+JUNOS_DEVICE = "device_name=houston-ifw-01"
+JUNOS_VERSION = 'software_version="junos-srxsme-21.3R3.10.tgz"'
+FILESERVER = 'fileserver="192.168.104.20:4200"'
+
+PB = f"pb.junos.upgrade.yaml -e {JUNOS_DEVICE} -e {JUNOS_VERSION} -e {FILESERVER}"
+
+# ---------------------------------------------------------------------------
+# SYSTEM PARAMETERS
+# ---------------------------------------------------------------------------
+PWD = os.getcwd()
 
 # ---------------------------------------------------------------------------
 # DOCKER PARAMETERS
 # ---------------------------------------------------------------------------
 DOCKER_IMG_ANSIBLE = "ghcr.io/cdot65/juniper-upgrade-software"
 DOCKER_TAG_ANSIBLE = "0.0.1"
+
 DOCKER_IMG_FASTAPI = "ghcr.io/cdot65/juniper-upgrade-fileserver"
 DOCKER_TAG_FASTAPI = "0.0.1"
 
@@ -127,28 +122,48 @@ def ansibleshell(context):
 
 
 # ------------------------------------------------------------------------------
-# GITHUB WORK
+# EXECUTE UPGRADE PLAYBOOK WITH ANSIBLE
 # ------------------------------------------------------------------------------
-@task
-def publish(context):
-    """Publish container image to github repository."""
+@task()
+def ansible(context):
+    """Run our Ansible upgrade playbook locally."""
+
+    console_msg(
+        f"Accessing local instance of {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}"
+    )
     context.run(
-        f"docker push {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}",
+        f"ansible-playbook ansible/{PB} -e username={ANSIBLE_NET_USERNAME} -e password={ANSIBLE_NET_PASSWORD}",
+        pty=True,
     )
 
 
-@task
-def tag(context):
-    """Tag our version within the repository."""
+# ------------------------------------------------------------------------------
+# EXECUTE UPGRADE PLAYBOOK WITHIN CONTAINTER IMAGE
+# ------------------------------------------------------------------------------
+@task()
+def ansibledocker(context):
+    """Test our automation container by running it locally."""
+
+    # run an ephemeral container in the foreground
+    command = "docker run -it --rm"
+
+    # specify working directory
+    workdir = "/home/ansible"
+
+    # mount our app/ directory to user home
+    volume = f"{PWD}/ansible:{workdir}"
+
+    console_msg(
+        f"Accessing local instance of {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}"
+    )
     context.run(
-        f"git tag v{DOCKER_IMG_ANSIBLE} && \
-          git push origin v{DOCKER_TAG_ANSIBLE}",
+        f"{command} -v {volume} {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE} ansible-playbook {PB}",
         pty=True,
     )
 
 
 # -----------------------------------------------------------------------------
-# BUILD AN RUN A LOCAL FILE SERVER
+# BUILD A LOCAL FILE SERVER
 # -----------------------------------------------------------------------------
 @task(
     help={
@@ -156,7 +171,7 @@ def tag(context):
         "cache": "Determine whether or not to use local cache.",
     }
 )
-def serverbuild(context, force_rm=False, cache=True):
+def buildserver(context, force_rm=False, cache=True):
     """Build our FastAPI docker container image.
     Args:
         context (obj): Used to run specific commands
@@ -180,23 +195,28 @@ def serverbuild(context, force_rm=False, cache=True):
     )
 
 
+# -----------------------------------------------------------------------------
+# RUN A LOCAL FILE SERVER
+# -----------------------------------------------------------------------------
 @task
-def serverrun(context):
-    # Execute Ansible playbook from within the container
+def server(context):
     context.run(
         f"docker run -d \
             --rm \
             -v {PWD}/python/fileserver:/home/fastapi \
             -w /home/fastapi/ \
-            -p 9100:80 \
+            -p 4200:80 \
             --name fileserver \
             {DOCKER_IMG_FASTAPI}:{DOCKER_TAG_FASTAPI}",
         pty=True,
     )
 
 
+# -----------------------------------------------------------------------------
+# ACCESS THE SHELL OF AN ALREADY RUNNING INSTANCE OF OUR FILE SERVER
+# -----------------------------------------------------------------------------
 @task
-def servershell(context):
+def shellserver(context):
     # Execute Ansible playbook from within the container
     context.run(
         "docker exec -it fileserver sh",
@@ -251,3 +271,24 @@ def tests(context):
     console_msg("Running flake8...")
     flake8(context)
     console_msg("All tests have passed!")
+
+
+# ------------------------------------------------------------------------------
+# GITHUB WORK
+# ------------------------------------------------------------------------------
+@task
+def publish(context):
+    """Publish container image to github repository."""
+    context.run(
+        f"docker push {DOCKER_IMG_ANSIBLE}:{DOCKER_TAG_ANSIBLE}",
+    )
+
+
+@task
+def tag(context):
+    """Tag our version within the repository."""
+    context.run(
+        f"git tag v{DOCKER_IMG_ANSIBLE} && \
+          git push origin v{DOCKER_TAG_ANSIBLE}",
+        pty=True,
+    )
