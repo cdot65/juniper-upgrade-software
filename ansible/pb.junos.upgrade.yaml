@@ -11,7 +11,7 @@
       ### Upgrade the device running Junos
       ### --------------------------------
       - name: Execute a basic Junos software upgrade.
-        software:
+        juniper.device.software:
           remote_package: "http://{{ fileserver }}/packages/{{ software_version }}"
           reboot: true
           validate: false
